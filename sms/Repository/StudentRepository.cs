@@ -1,29 +1,30 @@
-﻿using sms.Models.Dto;
-using sms.Repository.IRepository;
+﻿using sms.Repository.IRepository;
 using System.Data.SqlClient;
 using System.Data;
 using sms.Models;
+using System.Security.Claims;
+using sms.Models.Dto;
 
 namespace sms.Repository
 {
     public class StudentRepository : IStudentRepository
     {
         private readonly IConfiguration configuration;
+        private readonly string connectionString;
         public StudentRepository(IConfiguration config)
         {
             configuration = config;
+            connectionString = configuration.GetConnectionString("DefaultConnection");
         }
 
-        public async Task<List<Student>> GetAll()
+        public async Task<List<StudentGetDTO>> GetAll()
         {
-            string connectionString = configuration.GetConnectionString("DefaultConnection");
-
-            List<Student> studentList = new List<Student>();
+            List<StudentGetDTO> studentList = new List<StudentGetDTO>();
 
             using (SqlConnection connection = new SqlConnection(connectionString))
             {
-                SqlCommand command = new SqlCommand("StudentSP", connection);
-                command.Parameters.AddWithValue("@Query", SqlDbType.NVarChar).Value = 4;
+                SqlCommand command = new SqlCommand("StudentClassMap", connection);
+                command.Parameters.AddWithValue("@Operation", SqlDbType.VarChar).Value = "GetStudents";
 
                 command.CommandType = CommandType.StoredProcedure;
 
@@ -35,14 +36,19 @@ namespace sms.Repository
                 {
                     while (dr.Read())
                     {
-                        Student student = new Student();
+                        StudentGetDTO student = new();
 
+                        student.StudentId = dr.GetValue("StudentId").ToString();
                         student.Name = dr.GetValue("Name").ToString();
-                        student.RollNo = dr.GetInt32("RollNo").ToString();
-                        student.Class = dr.GetInt32("Class").ToString();
+                        student.RollNo = dr.GetValue("RollNo").ToString();
+                        student.ClassName = dr.GetValue("ClassName").ToString();
                         student.DateOfBirth = dr.GetValue("DateOfBirth").ToString();
                         student.Email = dr.GetValue("Email").ToString();
                         student.ContactNo = dr.GetValue("ContactNo").ToString();
+                        student.CreatedBy = dr.GetValue("Username").ToString(); // change done here for Createdby
+                        student.CreatedOn = dr.GetValue("CreatedOn").ToString();
+                        student.UpdatedBy = dr.GetValue("Username").ToString();
+                        student.UpdatedOn = dr.GetValue("UpdatedOn").ToString();
 
                         studentList.Add(student);
                     }
@@ -53,15 +59,20 @@ namespace sms.Repository
             return studentList;
         }
 
-        public async Task<Student> Get(int RollNo, int Class)
+        public async Task<StudentGetDTO> Get(int StudentId)
         {
-            Student student = null; // change
+            StudentGetDTO student = null; // change
 
             string connectionString = configuration.GetConnectionString("DefaultConnection");
 
             using (SqlConnection connection = new SqlConnection(connectionString))
             {
-                SqlCommand command = new SqlCommand("SELECT * FROM Student WHERE RollNo = '" + RollNo + "' AND Class = '" + Class + "' AND IsDeleted = 0;", connection);
+                SqlCommand command = new SqlCommand("StudentClassMap", connection);
+                command.Parameters.AddWithValue("@Operation", SqlDbType.VarChar).Value = "GetStudent";
+                command.Parameters.AddWithValue("@StudentId", SqlDbType.Int).Value = StudentId;
+
+                command.CommandType = CommandType.StoredProcedure;
+
                 connection.Open();
 
                 SqlDataReader dr = command.ExecuteReader();
@@ -70,14 +81,19 @@ namespace sms.Repository
                 {
                     while (dr.Read())
                     {
-                        student = new Student();
+                        student = new StudentGetDTO();
 
+                        student.StudentId = dr.GetValue("StudentId").ToString();
                         student.Name = dr.GetValue("Name").ToString();
-                        student.RollNo = dr.GetInt32("RollNo").ToString(); // roll number
-                        student.Class = dr.GetInt32("Class").ToString(); // class
+                        student.RollNo = dr.GetValue("RollNo").ToString();
+                        student.ClassName = dr.GetValue("ClassName").ToString();
                         student.DateOfBirth = dr.GetValue("DateOfBirth").ToString();
                         student.Email = dr.GetValue("Email").ToString();
                         student.ContactNo = dr.GetValue("ContactNo").ToString();
+                        student.CreatedBy = dr.GetValue("Username").ToString();
+                        student.CreatedOn = dr.GetValue("CreatedOn").ToString();
+                        student.UpdatedBy = dr.GetValue("Username").ToString();
+                        student.UpdatedOn = dr.GetValue("UpdatedOn").ToString();
 
                     }
                 }
@@ -86,24 +102,27 @@ namespace sms.Repository
             return student;
         }
 
-        public async Task<Student> Create(Student student)
+        public async Task<Student> Create(Student student, string userName)
         {
             string connectionString = configuration.GetConnectionString("DefaultConnection");
 
             using (SqlConnection connection = new SqlConnection(connectionString))
             {
-                SqlCommand command = new SqlCommand("StudentSP", connection);
+                SqlCommand command = new SqlCommand("StudentClassMap", connection);
+                command.Parameters.AddWithValue("@Operation", SqlDbType.VarChar).Value = "CreateStudent";
 
                 command.CommandType = CommandType.StoredProcedure;
 
-                command.Parameters.AddWithValue("@Name", SqlDbType.NVarChar).Value = student.Name; // check
+                command.Parameters.AddWithValue("@Name", SqlDbType.NVarChar).Value = student.Name;
                 command.Parameters.AddWithValue("@RollNo", SqlDbType.Int).Value = student.RollNo;
-                command.Parameters.AddWithValue("@Class", SqlDbType.Int).Value = student.Class;
+                command.Parameters.AddWithValue("@ClassId", SqlDbType.Int).Value = student.ClassId;
                 command.Parameters.AddWithValue("@DateOfBirth", SqlDbType.NVarChar).Value = student.DateOfBirth;
                 command.Parameters.AddWithValue("@Email", SqlDbType.NVarChar).Value = student.Email;
                 command.Parameters.AddWithValue("@ContactNo", SqlDbType.NVarChar).Value = student.ContactNo;
+                command.Parameters.AddWithValue("@CreatedBy", SqlDbType.NVarChar).Value = userName;
                 command.Parameters.AddWithValue("@CreatedOn", DateTime.Now);
-                command.Parameters.AddWithValue("@Query", SqlDbType.NVarChar).Value = 1;
+                command.Parameters.AddWithValue("@UpdatedBy", SqlDbType.NVarChar).Value = userName;
+                command.Parameters.AddWithValue("@UpdatedOn", DateTime.Now);
 
                 connection.Open();
 
@@ -115,19 +134,18 @@ namespace sms.Repository
             return student;
         }
 
-        public async Task Remove(int RollNo, int Class)
+        public async Task Remove(int StudentId, string userName)
         {
             string connectionString = configuration.GetConnectionString("DefaultConnection");
 
             using (SqlConnection connection = new SqlConnection(connectionString))
             {
-                SqlCommand command = new SqlCommand("StudentSP", connection);
+                SqlCommand command = new SqlCommand("StudentClassMap", connection);
+                command.Parameters.AddWithValue("@Operation", SqlDbType.VarChar).Value = "RemoveStudent";
 
                 command.CommandType = CommandType.StoredProcedure;
 
-                command.Parameters.AddWithValue("@RollNo", SqlDbType.Int).Value = RollNo;
-                command.Parameters.AddWithValue("@Class", SqlDbType.Int).Value = Class;
-                command.Parameters.AddWithValue("@Query", SqlDbType.NVarChar).Value = 3;
+                command.Parameters.AddWithValue("@StudentId", SqlDbType.Int).Value = StudentId;
 
                 connection.Open();
 
@@ -137,25 +155,27 @@ namespace sms.Repository
             }
         }
 
-        public async Task Update(int RollNo, int Class, Student student)
+        public async Task Update(int StudentId, StudentDTO student, string userName)
         {
 
             string connectionString = configuration.GetConnectionString("DefaultConnection");
 
             using (SqlConnection connection = new SqlConnection(connectionString))
             {
-                SqlCommand command = new SqlCommand("StudentSP", connection);
+                SqlCommand command = new SqlCommand("StudentClassMap", connection);
+                command.Parameters.AddWithValue("@Operation", SqlDbType.VarChar).Value = "UpdateStudent";
+                command.Parameters.AddWithValue("@StudentId", SqlDbType.Int).Value = StudentId;
 
                 command.CommandType = CommandType.StoredProcedure;
 
                 command.Parameters.AddWithValue("@Name", SqlDbType.NVarChar).Value = student.Name;
-                command.Parameters.AddWithValue("@RollNo", SqlDbType.Int).Value = RollNo;
-                command.Parameters.AddWithValue("@Class", SqlDbType.Int).Value = Class;
+                command.Parameters.AddWithValue("@RollNo", SqlDbType.Int).Value = student.RollNo;
                 command.Parameters.AddWithValue("@DateOfBirth", SqlDbType.NVarChar).Value = student.DateOfBirth;
                 command.Parameters.AddWithValue("@Email", SqlDbType.NVarChar).Value = student.Email;
+                command.Parameters.AddWithValue("@ClassId", SqlDbType.NVarChar).Value = student.ClassId;
                 command.Parameters.AddWithValue("@ContactNo", SqlDbType.NVarChar).Value = student.ContactNo;
                 command.Parameters.AddWithValue("@UpdatedOn", DateTime.Now);
-                command.Parameters.AddWithValue("@Query", SqlDbType.NVarChar).Value = 2;
+                command.Parameters.AddWithValue("@UpdatedBy", SqlDbType.NVarChar).Value = userName;
 
                 connection.Open();
 
@@ -175,28 +195,27 @@ namespace sms.Repository
             {
                 con.Open();
 
-                string query = "SELECT COUNT(*) FROM Student WHERE RollNo = @RollNo AND Class = @Class";
+                string query = "SELECT COUNT(*) FROM Student2 WHERE RollNo = @RollNo";
 
                 using (SqlCommand command = new SqlCommand(query, con))
                 {
-                    command.Parameters.AddWithValue("@RollNo", student.RollNo); 
-                    command.Parameters.AddWithValue("@Class", student.Class);
+                    command.Parameters.AddWithValue("@RollNo", student.RollNo);
 
                     int rowCount = (int)command.ExecuteScalar();
 
                     if (rowCount > 0)
                     {
-                        return true;
+                        return false;
                     }
                 }
 
                 con.Close();
             }
 
-            return false;
+            return true;
         }
 
-        public bool UpdateCheck(int RollNo, int Class)
+        public bool UpdateCheck(int StudentId)
         {
             bool flag = false;
 
@@ -206,28 +225,27 @@ namespace sms.Repository
             {
                 con.Open();
 
-                string query = "SELECT COUNT(*) FROM Student WHERE RollNo = @RollNo AND Class = @Class AND IsDeleted = 0";
+                string query = "SELECT COUNT(*) FROM Student2 WHERE StudentId = @StudentId AND IsDeleted = 0";
 
                 using (SqlCommand command = new SqlCommand(query, con))
                 {
-                    command.Parameters.AddWithValue("@RollNo", RollNo); // rename id
-                    command.Parameters.AddWithValue("@Class", Class);
+                    command.Parameters.AddWithValue("@StudentId", StudentId);
 
                     int rowCount = (int)command.ExecuteScalar();
 
                     if (rowCount > 0)
                     {
-                        return true;
+                        return false;
                     }
                 }
 
                 con.Close();
             }
 
-            return false;
+            return true;
         }
 
-        public bool RemoveCheck(int RollNo, int Class)
+        public bool RemoveCheck(int StudentId)
         {
             bool flag = false;
 
@@ -237,25 +255,55 @@ namespace sms.Repository
             {
                 con.Open();
 
-                string query = "SELECT COUNT(*) FROM Student WHERE RollNo = @RollNo AND Class = @Class AND IsDeleted = 0";
+                string query = "SELECT COUNT(*) FROM Student2 WHERE StudentId = @StudentId AND IsDeleted = 0";
 
                 using (SqlCommand command = new SqlCommand(query, con))
                 {
-                    command.Parameters.AddWithValue("@RollNo", RollNo); 
-                    command.Parameters.AddWithValue("@Class", Class);
+                    command.Parameters.AddWithValue("@StudentId", StudentId);
 
                     int rowCount = (int)command.ExecuteScalar();
 
                     if (rowCount > 0)
                     {
-                        return true;
+                        return false;
                     }
                 }
 
                 con.Close();
             }
 
-            return false;
+            return true;
+        }
+
+        public bool RollNoCheck(int RollNo, int StudentId)
+        {
+            bool flag = false;
+
+            string connectionString = configuration.GetConnectionString("DefaultConnection");
+
+            using (SqlConnection con = new SqlConnection(connectionString))
+            {
+                con.Open();
+
+                string query = "SELECT COUNT(*) FROM Student2 WHERE RollNo = @RollNo AND StudentId <> @StudentId";
+
+                using (SqlCommand command = new SqlCommand(query, con))
+                {
+                    command.Parameters.AddWithValue("@RollNo", RollNo);
+                    command.Parameters.AddWithValue("@StudentId", StudentId);
+
+                    int rowCount = (int)command.ExecuteScalar();
+
+                    if (rowCount > 0)
+                    {
+                        return false;
+                    }
+                }
+
+                con.Close();
+            }
+
+            return true;
         }
     }
 }

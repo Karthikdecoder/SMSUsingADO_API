@@ -5,14 +5,15 @@ namespace sms.Repository.IRepository
 {
     public interface IStudentRepository
     {
-        Task<List<Student>> GetAll();
-        Task<Student> Get(int RollNo, int Class);
-        Task<Student> Create(Student student);
-        Task Remove(int RollNo, int Class);
-        Task Update(int RollNo, int Class, Student student);
+        Task<List<StudentGetDTO>> GetAll();
+        Task<StudentGetDTO> Get(int StudentId);
+        Task<Student> Create(Student student, string userName);
+        Task Remove(int StudentId, string userName);
+        Task Update(int StudentId, StudentDTO student, string userName);
         public bool CreateCheck(Student student); // inversion of control, seperation of concern
-        public bool UpdateCheck(int RollNo, int Class);
-        public bool RemoveCheck(int RollNo, int Class);
+        public bool RemoveCheck(int StudentId);
+        public bool UpdateCheck(int StudentID);
+        public bool RollNoCheck(int RollNo, int StudentId);
     }
 }
 
